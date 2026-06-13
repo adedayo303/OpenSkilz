@@ -1,0 +1,16 @@
+# Never commit actual credentials
+CREDENTIALS.md
+*.key
+*.pfx
+*.p12
+*.pem
+.env
+.env.*
+vault-init.json
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+*.swp
+*~
