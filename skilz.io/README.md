@@ -59,7 +59,8 @@ Pull requests and issues are welcome on the public repository. If something is u
  NETWORK DEVICES
 
  Cisco (IOS, IOS-XE, IOS-XR, ASR, CSR, FTD)   Arista EOS
- Juniper (EX/QFX/MX)   Palo Alto PAN-OS   ContainerLab
+ Palo Alto PAN-OS   ContainerLab
+ Juniper (EX/QFX/MX, SSH capture; ERSPAN support partial)
  any device supporting ERSPAN or SSH shell
 
         |                                          |
@@ -129,21 +130,25 @@ Pull requests and issues are welcome on the public repository. If something is u
 
 The device mirrors traffic in hardware via ERSPAN and forwards it as a GRE stream to the collector running on `k8s-w-03`. This is configured once per device. During a capture the server reads the incoming stream, decapsulates it, and decodes it in real time. Nothing connects to the device at capture time. The device is completely unaware a capture is in progress.
 
-Supported on Cisco IOS-XE, IOS-XR, NX-OS, Arista EOS, and Juniper platforms that support port mirroring with GRE encapsulation. For Palo Alto firewalls, ERSPAN is sourced from the upstream switch mirroring traffic towards the firewall rather than from the firewall itself.
+Verified on Cisco IOS-XE, IOS-XR, NX-OS, and Arista EOS. For Palo Alto firewalls, ERSPAN is sourced from the upstream switch mirroring traffic towards the firewall rather than from the firewall itself. Juniper platforms advertise GRE-based port mirroring but their on-device encapsulation does not consistently match ERSPAN Type II; collector-side support for Juniper is present but requires per-platform validation before use in a live environment.
 
 **Mode 2: SSH pipe (fallback, Linux-based and virtual devices)**
 
-Used for devices that expose a Linux shell where `tcpdump` is available directly, primarily ContainerLab containers and Arista EOS in bash mode. An SSH session opens when capture starts, `tcpdump -w -` streams raw pcap bytes over the channel, and the session closes the moment capture stops. Nothing lingers on the device after the session ends.
+Used for devices that expose a Linux shell where `tcpdump` is available directly, primarily ContainerLab containers and Arista EOS in bash mode. Juniper JunOS also supports this path via SSH shell. An SSH session opens when capture starts, `tcpdump -w -` streams raw pcap bytes over the channel, and the session closes the moment capture stops. Nothing lingers on the device after the session ends.
 
 This mode is not applicable to standard Cisco IOS or IOS-XE without guestshell configured, and is not available on most production routing platforms without shell access enabled.
 
-| Property | ERSPAN (Mode 1) | SSH pipe (Mode 2) |
-|---|---|---|
-| Connection to device during capture | None | One SSH session |
-| Process on device during capture | None, hardware mirror | tcpdump running |
-| Device CPU impact | Zero | Minimal |
-| Vendor support | Cisco, Arista, Juniper (PA via upstream switch mirror) | Linux shell devices, ContainerLab |
-| Best suited for | Production hardware | Lab and virtual devices |
+**Traffic trace (cross-device ERSPAN, Cisco only)**
+
+A separate trace mode simultaneously configures an ERSPAN mirror session on every eligible Cisco IOS and IOS-XE device in the topology, using session ID 2 to avoid colliding with the per-interface capture session. When a packet matching the defined filter arrives from any device, the originating device and interface are surfaced in real time. Arista and Juniper are skipped in this mode. Credentials are held in memory for the duration of the trace and zeroed out on stop.
+
+| Property | ERSPAN (Mode 1) | SSH pipe (Mode 2) | Traffic trace |
+|---|---|---|---|
+| Connection to device during capture | None | One SSH session | SSH to configure, then passive |
+| Process on device during capture | None, hardware mirror | tcpdump running | ERSPAN session active |
+| Device CPU impact | Zero | Minimal | Negligible |
+| Vendor support | Cisco, Arista (Juniper: limited) | Linux shell, ContainerLab, Juniper JunOS | Cisco IOS / IOS-XE only |
+| Best suited for | Production hardware | Lab and virtual devices | Cross-device traffic correlation |
 
 ### ERSPAN Packet Pipeline (Mode 1)
 
@@ -172,16 +177,14 @@ decoder.js: tshark -i <fifo> -T json -l -x [-Y filter]
     v
 server.js, WebSocket, Browser
     CaptureWindow renders live rows, protocol tree, hex dump
+
+tracer.js runs alongside capture.js as a separate session manager.
+It configures ERSPAN session 2 on all eligible Cisco devices simultaneously,
+filters incoming frames against user-defined rules, and emits a 'hit' event
+per match without opening a dedicated per-device capture window.
 ```
 
 ### Security Boundary
-
-| Property | ERSPAN (Mode 1) | SSH pipe (Mode 2) |
-|---|---|---|
-| Session to device during capture | None | SSH session open |
-| Process on device during capture | None, hardware mirror | tcpdump running |
-| Device CPU during capture | Zero | Minimal |
-| Best suited for | Production hardware | Lab and virtual devices |
 
 ERSPAN is completely passive. The original traffic is copied at the hardware level. Forwarding, latency, and routing on the device are not affected. The only switch resource consumed is the ERSPAN session counter.
 
@@ -206,9 +209,9 @@ ERSPAN is completely passive. The original traffic is copied at the hardware lev
 | kube-vip | v1.2.0 | K8s API HA virtual IP |
 | Calico | v3.30.1 | CNI, pod networking and BGP |
 | MetalLB | v0.14.9 | LoadBalancer VIP for Ingress |
-| NGINX Ingress | current | Ingress routing, WebSocket |
+| NGINX Ingress | v1.12.2 | Ingress routing, WebSocket |
 | cert-manager | v1.17.2 | Automatic TLS issuance via ADCS |
-| Longhorn | current | Block storage on worker sdb disks |
+| Longhorn | v1.12.0 | Block storage on worker sdb disks |
 | HashiCorp Vault | v2.0.2 | 3-pod Raft HA, all secrets |
 
 ### Applications
@@ -290,7 +293,7 @@ Current state: the NetObserv image is built manually from `k8s-jb` and pushed to
 ## Repository Structure
 
 ```
-public-skilz.io/
+skilz.io/
   README.md
   .gitignore                                excludes CREDENTIALS.md and secrets
   00-prerequisites/
@@ -310,6 +313,7 @@ public-skilz.io/
   06-netobserv/
     NETOBSERV-SOLUTION-OVERVIEW.md          Architecture, capture modes, WebSocket protocol
     netobserv-build.md                      Step-by-step build, all bugs and fixes
+    tracer-design.md                        Traffic trace session manager design and Cisco ERSPAN config
     pictures/                               UI screenshots
   07-observability/
     observability-stack.md                  Prometheus, Grafana, Loki (next)
