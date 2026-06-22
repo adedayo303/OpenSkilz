@@ -550,4 +550,4 @@ All nodes should respond OK. If any are unreachable:
 - [ ] `kubectl` installed on k8s-jb
 - [ ] Automatic updates disabled on all nodes
 
-**Next: [Day 1 Active Directory, DNS, and Certificate Authority](day1-active-directory-and-pki.md)**
+
