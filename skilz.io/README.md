@@ -346,7 +346,7 @@ Each module depends on the one before it. This is the order the platform was bui
 | Module 04 | Vault 3-pod HA, AD auth, AppRole, root token revoked | Done |
 | Module 05 | GitLab CE and runner, K8s integration | Planned |
 | Module 06 | SkilzNetObserv, packet analyser, live, AD-gated | Done |
-| Module 07 | Prometheus, Grafana, Loki | Next |
+| Module 07 | Prometheus, Grafana, Loki | Done |
 | Module 08 | Nautobot NSoT, SSH discovery, Vault creds, SSoT sync | Done |
 | Module 09 | Cluster operations, drain, maintenance, recovery | Done |
 | Module 10 | Kubernetes Dashboard, ADCS TLS, bearer token auth | Done |
