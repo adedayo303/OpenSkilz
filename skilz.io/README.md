@@ -1,29 +1,70 @@
-# SkilzNetObserv
+# Skilz.io — A Self-Managed Kubernetes Platform
 
-A browser-based real-time packet analyser built on a production-pattern Kubernetes platform.
-Click a device. Click an interface. See live packets with full protocol decode.
+A production-pattern Kubernetes platform, built and documented from the ground up: HA control
+plane, a proper two-tier PKI, Active Directory identity, Vault-backed secrets with no plaintext
+credentials anywhere, NGINX ingress with automatic TLS, distributed block storage, and a
+management plane deliberately separated from the workload plane.
 
----
-
-## Why this exists
-
-Getting visibility into traffic flowing across a multi-vendor infrastructure estate is probably more complicated than most people would like it to be. Each platform has a different approach to packet capture, different syntax, different constraints, and different levels of access required. When the estate spans devices from multiple vendors, there is no single centralised place from which to see what is happening across all of them simultaneously. The result is typically a series of separate sessions, separate capture files, and a manual process of exporting and opening each one locally before any analysis can begin.
-
-In a secured environment this is compounded further. Maintaining interactive sessions on production equipment requires justification, approval, and in many cases is simply not permitted. Any tooling that holds open connections to network devices, or that cannot demonstrate a clear boundary around when it interacts with equipment and when it does not, is difficult to operate within a governed environment.
-
-The approach taken here addresses both concerns. ERSPAN (Encapsulated Remote SPAN) is a mechanism supported across Cisco, Arista, and Juniper platforms that copies traffic from a device interface at the hardware level and forwards it as a GRE-encapsulated stream to a collector. The device mirrors traffic in the ASIC. There is no process running on the equipment during capture, no interactive session, no CPU impact. The collector receives the stream passively, decapsulates the GRE frames, and decodes the inner packets in real time using the same dissector library Wireshark uses.
-
-The result is a browser-based tool where an engineer can click on any device in a live topology map, select an interface, and immediately see every packet flowing on that interface decoded to full protocol depth, without opening a session on the device and without exporting files to a local machine. Capture starts when requested and stops the moment the session is closed.
+The platform hosts several capabilities, each documented as its own set of modules: **Nautobot**
+as the network source of truth, **SkilzNetObserv** for real-time browser-based packet capture and
+analysis, and a full **observability stack** (Prometheus, Grafana, Loki) watching the platform
+itself.
 
 ---
 
-## The platform
+## What Building This Reinforced
 
-The application needed a home, and building that home turned into its own project. The platform underneath SkilzNetObserv closely mirrors what an acceptable production Kubernetes deployment looks like: a proper two-tier PKI, Active Directory for identity, Vault for secrets with no plaintext credentials anywhere in the codebase, NGINX ingress with automatic TLS issuance, distributed block storage, and a management plane deliberately separated from the workload plane.
+Building this was one of the most effective ways of reinforcing how Kubernetes actually works in
+depth. Not just deploying a container and calling it done, but working through HA control planes
+and etcd quorum, how kube-vip relates to VRRP, how Calico BGP underpins pod networking, what
+cert-manager does when it talks to a Windows enterprise CA, how Vault AppRoles scope secrets to
+individual applications, and what it takes to make a pod that needs access to a raw network
+socket run safely in a cluster.
 
-Building it was one of the most effective ways of reinforcing how Kubernetes actually works in depth. Not just deploying a container and calling it done, but working through HA control planes and etcd quorum, how kube-vip relates to VRRP, how Calico BGP underpins pod networking, what cert-manager does when it talks to a Windows enterprise CA, how Vault AppRoles scope secrets to individual applications, and what it takes to make a pod that needs access to a raw network socket run safely in a cluster.
+Every module in this repository maps to something that would come up in a real production
+environment. The modules that were hardest to build are the ones that taught the most.
 
-Every module in this repository maps to something that would come up in a real production environment. The modules that were hardest to build are the ones that taught the most.
+Each capability hosted on the platform solves a real problem in its own right, not just an
+exercise in filling out the cluster. Nautobot exists because you cannot operate a network without
+a real source of truth for it. SkilzNetObserv exists because getting visibility into traffic
+across a multi-vendor infrastructure estate is normally far more complicated than it should be —
+see [Capabilities](#capabilities) below for what each one does and why it was built the way it was.
+
+---
+
+## Capabilities
+
+### Nautobot — Network Source of Truth
+
+Every device, interface, IP, VLAN, VRF, and prefix in one place, always up to date via SSH-driven
+discovery rather than a spreadsheet someone updated last quarter. Credentials are fetched from
+Vault at runtime, never stored in Nautobot itself. A custom-built documentation-as-code App
+(topology viewer, low-level design export, live routing tables) turns the source of truth into
+browsable, exportable documentation. See Module 07.
+
+### SkilzNetObserv — Real-Time Packet Capture
+
+Getting visibility into traffic flowing across a multi-vendor infrastructure estate is normally
+far more complicated than most people would like it to be. Each platform has a different approach
+to packet capture, different syntax, different constraints, and different levels of access
+required — and in a secured environment, holding open interactive sessions on production
+equipment requires justification most teams cannot get.
+
+SkilzNetObserv addresses this with ERSPAN (Encapsulated Remote SPAN), a mechanism supported
+across Cisco, Arista, and Juniper platforms that mirrors traffic in the device's own ASIC and
+forwards it as a GRE-encapsulated stream to a collector — no interactive session, no process
+running on the equipment, no CPU impact. The collector decapsulates the stream and decodes
+packets in real time using the same dissector library Wireshark uses.
+
+The result is a browser-based tool where an engineer clicks on any device in a live topology map,
+selects an interface, and immediately sees every packet flowing on it decoded to full protocol
+depth — without opening a session on the device and without exporting files to a local machine.
+Capture starts when requested and stops the moment the session is closed. See Module 05.
+
+### Observability Stack
+
+Prometheus, Grafana, and Loki watch the platform's own health: metrics from every node and pod,
+and searchable logs from every container, in one place. See Module 06.
 
 ---
 
@@ -47,7 +88,7 @@ For the networking side, the aim is to extend SkilzNetObserv to cover a wider ra
 
 ## If you are on a similar journey
 
-This project is published in the hope that it is useful to others on a similar path, whether that means approaching Kubernetes for the first time, reinforcing knowledge at a more advanced level, or looking for a practical way to address long-standing network visibility challenges across a multi-vendor estate. Every decision in the build is documented, including the things that did not work first time.
+This project is published in the hope that it is useful to others on a similar path, whether that means approaching Kubernetes for the first time, reinforcing knowledge at a more advanced level, building a real network source of truth, or looking for a practical way to address long-standing network visibility challenges across a multi-vendor estate. Every decision in the build is documented, including the things that did not work first time.
 
 Pull requests and issues are welcome on the public repository. If something is unclear, documented incorrectly, or could be done better, raising an issue or opening a pull request is the right way to contribute. No contribution is too small.
 
@@ -91,7 +132,7 @@ Pull requests and issues are welcome on the public repository. If something is u
                                     v
  +--------------------------------------------------------------------+
  |  SkilzNetObserv  (netobserv namespace, pinned to k8s-w-03)         |
- |  Jumpbox: k8s-jb (192.168.13.245), admin access only              |
+ |  Jumpbox: mgmt-host (192.168.13.245), admin access only              |
  |                                                                    |
  |  server.js    reads Nautobot (SSoT) for device list               |
  |               reads Vault for SSH creds on each capture start     |
@@ -116,8 +157,8 @@ Pull requests and issues are welcome on the public repository. If something is u
  https://netobserv.skilz.io      live packet capture (AD login)
  https://nautobot.skilz.io       network source of truth
  https://vault.skilz.io          secrets management
- https://grafana.skilz.io        metrics and dashboards (Module 07)
- https://gitlab.skilz.io         CI/CD (Module 05)
+ https://grafana.skilz.io        metrics and dashboards (Module 06)
+ https://gitlab.skilz.io         CI/CD, standalone VM, not in the cluster
 ```
 
 ---
@@ -220,9 +261,9 @@ ERSPAN is completely passive. The original traffic is copied at the hardware lev
 |---|---|---|
 | SkilzNetObserv | `netobserv` | Real-time browser packet analyser |
 | Nautobot | `nautobot` | Network Source of Truth, device registry |
-| Prometheus and Grafana | `monitoring` | Metrics and dashboards (Module 07) |
+| Prometheus and Grafana | `monitoring` | Metrics and dashboards (Module 06) |
 | Kubernetes Dashboard | `kubernetes-dashboard` | Cluster GUI |
-| GitLab CE | Separate VM | Source control and CI/CD (Module 05) |
+| GitLab CE | Separate VM, not in the cluster | Source control and CI/CD (not documented as a module in this repo) |
 
 ---
 
@@ -286,7 +327,7 @@ Build image, push to GitLab Container Registry (`registry.gitlab.skilz.io/root/n
 
 Build the custom Nautobot image with plugins baked in, run `nautobot-server migrate` as a Kubernetes Job before the deployment, perform a rolling update, and smoke test the API endpoint.
 
-Current state: the NetObserv image is built manually from `k8s-jb` and pushed to a local registry. The GitLab CI pipeline exists but is not yet connected to the registry. The full transition is documented in `05-cicd/gitlab-pipeline.md`.
+Current state: the NetObserv image is built manually from `mgmt-host` and pushed to a local registry. The GitLab CI pipeline exists but is not yet connected to the registry. GitLab runs on a standalone VM outside the cluster and is not documented as a module in this repo.
 
 ---
 
@@ -308,21 +349,21 @@ skilz.io/
     longhorn-persistent-storage.md          Longhorn block storage and NFS ReadWriteMany
   04-secrets/
     vault-secrets-management.md             Vault 3-pod HA, AD auth, AppRole, policy
-  05-cicd/
-    gitlab-pipeline.md                      GitLab CE and runner (planned, not yet live)
-  06-netobserv/
+  05-netobserv/
     NETOBSERV-SOLUTION-OVERVIEW.md          Architecture, capture modes, WebSocket protocol
     netobserv-build.md                      Step-by-step build, all bugs and fixes
     tracer-design.md                        Traffic trace session manager design and Cisco ERSPAN config
     pictures/                               UI screenshots
-  07-observability/
+  06-observability/
     observability-stack.md                  Prometheus, Grafana, Loki (next)
-  08-nautobot/
+  07-nautobot/
     nautobot-build.md                       Nautobot NSoT: build, Vault, SSoT discovery
-  09-operations/
+    nautobot-doc-as-code.md                 Documentation-as-code App, feature parity, Ansible
+    scripts/ansible-netdevops/              Non-secret Ansible config mirror
+  08-operations/
     node-maintenance.md                     Graceful drain, node rejoin, recovery
     security-patching.md                    OS patches, K8s upgrades, air-gap plan
-  10-dashboard/
+  09-dashboard/
     kubernetes-dashboard.md                 K8s Dashboard, ADCS TLS, token auth
   snmp-configs/
     cisco-iosxe.conf                        SNMPv3 config for Cisco IOS-XE
@@ -344,12 +385,11 @@ Each module depends on the one before it. This is the order the platform was bui
 | Module 02 | MetalLB, NGINX Ingress, cert-manager, ADCS, TLS | Done |
 | Module 03 | Longhorn block storage, NFS StorageClass | Done |
 | Module 04 | Vault 3-pod HA, AD auth, AppRole, root token revoked | Done |
-| Module 05 | GitLab CE and runner, K8s integration | Planned |
-| Module 06 | SkilzNetObserv, packet analyser, live, AD-gated | Done |
-| Module 07 | Prometheus, Grafana, Loki | Done |
-| Module 08 | Nautobot NSoT, SSH discovery, Vault creds, SSoT sync | Done |
-| Module 09 | Cluster operations, drain, maintenance, recovery | Done |
-| Module 10 | Kubernetes Dashboard, ADCS TLS, bearer token auth | Done |
+| Module 05 | SkilzNetObserv, packet analyser, live, AD-gated | Done |
+| Module 06 | Prometheus, Grafana, Loki | Done |
+| Module 07 | Nautobot NSoT, SSH discovery, Vault creds, SSoT sync | Done |
+| Module 08 | Cluster operations, drain, maintenance, recovery | Done |
+| Module 09 | Kubernetes Dashboard, ADCS TLS, bearer token auth | Done |
 
 ---
 
@@ -358,12 +398,12 @@ Each module depends on the one before it. This is the order the platform was bui
 ```
 192.168.13.0/24  management
   .199  rootca     Offline Root CA (powered off after Day 1)
-  .245  k8s-jb     Jumpbox, kubectl, helm, SSH to all nodes, VS Code Remote SSH
+  .245  mgmt-host     Jumpbox, kubectl, helm, SSH to all nodes, VS Code Remote SSH
 
 192.168.14.0/24  K8s zone 1 and GitLab
   .11   k8s-cp-01  Control plane
   .12   k8s-w-01   Worker (Longhorn disk)
-  .13   gitlab-srv GitLab CE and runner (Module 05)
+  .13   gitlab-srv GitLab CE and runner (standalone VM, not documented as a module here)
   .30   kube-vip   K8s API HA VIP (no VM, software)
   .31   MetalLB    Ingress VIP, all *.skilz.io services
 
@@ -377,7 +417,7 @@ Each module depends on the one before it. This is the order the platform was bui
   .12   k8s-w-03   Worker (Longhorn disk), NetObserv ERSPAN collector
 ```
 
-The management subnet (`192.168.13.0/24`) is dedicated to administrative access. All kubectl, helm, and SSH work goes through `k8s-jb`. This keeps the management plane separate from cluster traffic.
+The management subnet (`192.168.13.0/24`) is dedicated to administrative access. All kubectl, helm, and SSH work goes through `mgmt-host`. This keeps the management plane separate from cluster traffic.
 
 The NetObserv pod is pinned to `k8s-w-03` because the pod runs with `hostNetwork: true`. The GRE/ERSPAN collector opens a raw socket on the physical host NIC, and switches send ERSPAN frames to `192.168.16.12` specifically. If the pod moved to another node, every switch ERSPAN session would need reconfiguring before captures would work again.
 
@@ -426,9 +466,8 @@ Documentation for each module is underway and will be published here after valid
 | 02-networking | MetalLB, NGINX Ingress, cert-manager, ADCS TLS workflow |
 | 03-storage | Longhorn block storage, NFS StorageClass |
 | 04-secrets | Vault 3-pod HA, AD auth, AppRole, scoped policies |
-| 05-cicd | GitLab CE, runner, Kubernetes integration |
-| 06-netobserv | SkilzNetObserv architecture, capture pipeline, ERSPAN config, build log |
-| 07-observability | Prometheus, Grafana, Loki |
-| 08-nautobot | Nautobot network source of truth, Vault integration, SSoT discovery |
-| 09-operations | Node maintenance, graceful drain, recovery procedures |
-| 10-dashboard | Kubernetes Dashboard, ADCS TLS, bearer token auth |
+| 05-netobserv | SkilzNetObserv architecture, capture pipeline, ERSPAN config, build log |
+| 06-observability | Prometheus, Grafana, Loki |
+| 07-nautobot | Nautobot network source of truth, Vault integration, SSoT discovery, doc-as-code, Ansible |
+| 08-operations | Node maintenance, graceful drain, recovery procedures |
+| 09-dashboard | Kubernetes Dashboard, ADCS TLS, bearer token auth |
